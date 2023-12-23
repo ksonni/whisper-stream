@@ -1,14 +1,16 @@
 {
   "name": "api",
-  "module": "index.ts",
-  "type": "module",
-  "devDependencies": {
-    "bun-types": "latest"
-  },
+  "version": "1.0.0",
+  "description": "",
   "scripts": {
-    "start": "bun src/index.ts"
+    "start": "ts-node ./src/index.ts"
   },
-  "peerDependencies": {
-    "typescript": "5.0.0"
+  "author": "",
+  "dependencies": {
+    "ts-node": "10.9.2",
+    "typescript": "5.3.3"
+  },
+  "devDependencies": {
+    "tsconfig-paths": "4.2.0"
   }
 }
