@@ -1,0 +1,10 @@
+version: '3'
+services:
+  api:
+    image: api:latest
+    build:
+      context: api 
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    restart: on-failure

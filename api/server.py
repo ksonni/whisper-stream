@@ -28,6 +28,6 @@ def transcribe_message(message):
 
 print("Starting server on port 3000")
 
-start_server = websockets.serve(observe_websocket, "localhost", 3000)
+start_server = websockets.serve(observe_websocket, "0.0.0.0", 3000)
 asyncio.get_event_loop().run_until_complete(start_server)
 asyncio.get_event_loop().run_forever()
