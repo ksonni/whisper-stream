@@ -10,10 +10,7 @@ export class AudioRecordingSession {
 
     constructor(private stream: MediaStream) {
         this.recorder = new MediaRecorder(stream, { mimeType: RecordingConfig.mimeType })
-        this.ws = new WebSocket('ws://localhost:3000')
-        this.ws.onopen = (e) => {
-            this.ws.send('ping!!!');
-        }
+        this.ws = new WebSocket('ws://localhost:3000/transcribe')
     }
 
     start(handler: (event: 'error') => void) {

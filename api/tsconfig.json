@@ -1,13 +1,16 @@
 {
     "extends": "ts-node/node16/tsconfig.json",
-
     "ts-node": {
         "files": true,
         "require": ["tsconfig-paths/register"],
-        "compilerOptions": {
-            "paths": {
-                "@/*": ["./src/*"]
-            }
-        }
     },
+    "compilerOptions": {
+        "baseUrl": ".",
+        "paths": {
+            "@/*": ["./src/*"]
+        },
+        "strict": true,
+        "strictNullChecks": true,
+        "moduleResolution": "Node16"
+    }
 }
