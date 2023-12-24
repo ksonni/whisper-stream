@@ -2,10 +2,14 @@ import threading
 import os, stat
 import whisper
 import uuid
+import time
 
-model = whisper.load_model("base")
+from whisper.audio import load_audio
+
+model = whisper.load_model("base.en")
 
 async def transcribe_opus(data):
+    start = time.time()
     path = f'chunk-{str(uuid.uuid1())}.opus'
 
     os.mkfifo(path)
@@ -20,6 +24,8 @@ async def transcribe_opus(data):
     supply_thread.join()
 
     clear_pipe(path)
+
+    print(f'Transcribed {path} in {time.time()-start:.2f}s')
 
     return results[0]
 
@@ -36,7 +42,8 @@ def write_to_pipe(path, data):
 
 def transcribe(path, results):
     try:
-        results[0] = model.transcribe(path, fp16=False)
+        ar = load_audio(path)
+        results[0] = model.transcribe(ar, fp16=False)
     except Exception as e:
         print(f'Transcribe of pipe {path} failed', e)
         results[0] = { "error": True }

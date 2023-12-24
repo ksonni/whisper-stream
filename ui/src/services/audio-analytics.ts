@@ -1,3 +1,5 @@
+import { v4 as uuid } from 'uuid'
+
 const Config = {
     // Sampling rate of the audio
     samplingRate: 16_000,
@@ -13,6 +15,15 @@ const Config = {
     wsUrl: 'ws://localhost:3000/transcribe'
 } as const
 
+export type AnalyticsEvent =
+    | { kind: 'error' }
+    | {
+          kind: 'text'
+          text: string
+      }
+
+export type AnalyticsEventListener = (e: AnalyticsEvent) => void
+
 export class AudioAnalyticsSession {
     private recorder: MediaRecorder
     private ws?: WebSocket
@@ -25,6 +36,7 @@ export class AudioAnalyticsSession {
     private lastSpeechTime?: number
     private lastInitTime?: number
     private speechPresentInSample = false
+    private eventListeners: Record<string, AnalyticsEventListener> = {}
 
     constructor(private stream: MediaStream) {
         this.recorder = new MediaRecorder(stream, { mimeType: Config.mimeType })
@@ -35,7 +47,7 @@ export class AudioAnalyticsSession {
         this.domainData = new Uint8Array(this.analyzer.frequencyBinCount)
     }
 
-    start(handler: (event: 'error') => void) {
+    start() {
         this.ws = new WebSocket(Config.wsUrl)
         this.recorder.addEventListener('dataavailable', async (e) => {
             if (!this.speechPresentInSample) {
@@ -47,10 +59,25 @@ export class AudioAnalyticsSession {
         })
         this.recorder.addEventListener('error', (e) => {
             console.error('Recording failed', e)
-            handler('error')
+            this.dispatchEvent({ kind: 'error' })
         })
         this.lastInitTime = Date.now()
         this.recorder.start()
+        this.ws.onmessage = (msg) => {
+            const data = JSON.parse(msg.data as string)
+            if (!data.error) {
+                this.dispatchEvent({
+                    kind: 'text',
+                    text: data.text
+                })
+            } else {
+                this.dispatchEvent({ kind: 'error' })
+            }
+        }
+        this.ws.onerror = (e) => {
+            console.error('Websocket error!', e)
+            this.dispatchEvent({ kind: 'error' })
+        }
 
         const detectSpeech = () => {
             this.analyzer.getByteFrequencyData(this.domainData)
@@ -92,6 +119,20 @@ export class AudioAnalyticsSession {
         if (this.detectSpeechLoop) {
             window.cancelAnimationFrame(this.detectSpeechLoop)
         }
+    }
+
+    addEventListener(listener: AnalyticsEventListener): string {
+        const id = uuid()
+        this.eventListeners[id] = listener
+        return id
+    }
+
+    removeEventListener(id: string) {
+        delete this.eventListeners[id]
+    }
+
+    private dispatchEvent(e: AnalyticsEvent) {
+        Object.values(this.eventListeners).forEach((cb) => cb(e))
     }
 
     // This finalizes a sample which makes it ready for analysis
