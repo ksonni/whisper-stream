@@ -11,11 +11,11 @@
 <script lang="ts">
 import { defineComponent } from 'vue'
 
-import { AudioRecordingSession } from '@/services/audio-recording-service'
+import { AudioAnalyticsSession } from '@/services/audio-analytics'
 
 class Data {
     recording = false
-    session: AudioRecordingSession | undefined
+    session: AudioAnalyticsSession | undefined
 }
 
 export default defineComponent({
@@ -26,7 +26,7 @@ export default defineComponent({
     methods: {
         start: async function () {
             try {
-                this.session = await AudioRecordingSession.createSession()
+                this.session = await AudioAnalyticsSession.create()
                 this.session.start((e) => {
                     if (e === 'error') {
                         this.stop()
