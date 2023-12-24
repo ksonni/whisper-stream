@@ -1,2 +1,3 @@
 *.opus
 __pycache__
+env/
