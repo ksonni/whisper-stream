@@ -1,9 +1,9 @@
 import asyncio
 import websockets
-import numpy as np
-import whisper
+import json
 
-model = whisper.load_model("base")
+from transcribe import transcribe_opus
+
 connected = set()
 
 async def observe_websocket(ws):
@@ -11,20 +11,13 @@ async def observe_websocket(ws):
     print("Websocket: opened")
     try:
         async for message in ws:
-            transcribe_message(message)
+            result = await transcribe_opus(message)
+            await ws.send(json.dumps(result))
     except websockets.ConnectionClosed as e:
         print("Websocket: closed abnormally", e)
     finally:
         print("Websocket: closed")
         connected.remove(ws)
-
-def transcribe_message(message):
-    with open('binary.opus', 'wb') as f:
-        f.write(message)
-    # ar = np.frombuffer(data, dtype=np.uint8)
-    # result = model.transcribe(ar.flatten().astype(np.float32) / 32768.0)
-    result = model.transcribe("binary.opus", fp16=False)
-    print(result['text'])
 
 print("Starting server on port 3000")
 
