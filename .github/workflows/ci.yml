@@ -1,0 +1,21 @@
+name: Transcription
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+        run:
+          working-directory: ./api
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: make install
+      - name: Typecheck 
+        run: make type_check
