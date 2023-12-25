@@ -8,7 +8,7 @@ lib_transcribe = pipeline(
     "automatic-speech-recognition",
     model="openai/whisper-base.en",
     torch_dtype=torch.float16,
-    device="cuda:0" if torch.cuda.is_available() else "mps",
+    device="mps", # Needs cuda support
 )
 
 async def transcribe_safe(byte_data, sample_rate=16_000):

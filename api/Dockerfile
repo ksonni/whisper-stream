@@ -2,6 +2,8 @@ FROM python:3.11-bullseye
 
 RUN apt-get update && apt-get install --assume-yes ffmpeg
 
+RUN apt-get install --assume-yes protobuf-compiler
+
 WORKDIR /usr/src/app
 
 COPY requirements.txt .
@@ -11,4 +13,4 @@ RUN make install
 
 COPY . .
 
-CMD [ "python", "./server.py" ]
+CMD [ "python", "src/server.py" ]
