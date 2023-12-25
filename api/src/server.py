@@ -1,3 +1,4 @@
+from typing import Set, Any
 import asyncio
 import websockets
 
@@ -5,9 +6,9 @@ from transcribe import transcribe_safe
 
 import protobufs.transcription_pb2 as pb
 
-connected = set()
+connected: Set[websockets.WebSocketServerProtocol] = set()
 
-async def observe_websocket(ws):
+async def observe_websocket(ws: websockets.WebSocketServerProtocol):
     connected.add(ws)
     print("Websocket: opened")
     try:
@@ -20,9 +21,9 @@ async def observe_websocket(ws):
         connected.remove(ws)
 
 
-async def handle_transcription_request(ws, msg):
+async def handle_transcription_request(ws: websockets.WebSocketServerProtocol, msg: str | bytes):
     try:
-        request = pb.TranscriptionRequest.FromString(msg)
+        request = parse_transcription_request(msg)
     except Exception as e:
         print("Failed to serialize transcription request", e)
         return
@@ -30,10 +31,15 @@ async def handle_transcription_request(ws, msg):
     await send_respose(ws, pb.TranscriptionResponse(
         serial=request.serial,
         code=200 if result is not None else 500,
-        text= result['text'] if 'text' in result else None,
+        text= result['text'] if result is not None and 'text' in result else None,
     ))
 
-async def send_respose(ws, proto):
+def parse_transcription_request(msg: str | bytes) -> pb.TranscriptionRequest:
+    if not isinstance(msg, bytes):
+        raise(TypeError("Got unexpected type of websocket message"))
+    return pb.TranscriptionRequest.FromString(msg)
+
+async def send_respose(ws: websockets.WebSocketServerProtocol, proto: Any):
     try:
         await ws.send(proto.SerializeToString())
     except Exception as e:

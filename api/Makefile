@@ -3,3 +3,9 @@ freeze:
 
 install:
 	pip install -r requirements.txt
+
+type_check:
+	mypy src
+
+run:
+	python src/server.py

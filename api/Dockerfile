@@ -18,4 +18,4 @@ RUN make install
 
 COPY . .
 
-CMD [ "python", "src/server.py" ]
+CMD [ "make", "run" ]
