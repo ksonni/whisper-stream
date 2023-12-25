@@ -1,3 +1,4 @@
 *.opus
 __pycache__
 env/
+src/protobufs/

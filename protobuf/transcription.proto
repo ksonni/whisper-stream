@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+message TranscriptionRequest {
+    int64 serial = 1;
+    bytes data = 2;
+}
+
+message TranscriptionResponse {
+    int64 serial = 1;
+    string text = 2;
+    int32 code = 3;
+}

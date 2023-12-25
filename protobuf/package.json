@@ -1,0 +1,11 @@
+{
+  "name": "protobuf",
+  "version": "1.0.0",
+  "description": "",
+  "volta": {
+    "node": "20.10.0"
+  },
+  "dependencies": {
+    "protoc-gen-ts": "0.8.7"
+  }
+}

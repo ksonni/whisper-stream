@@ -1,4 +1,5 @@
 import { v4 as uuid } from 'uuid'
+import { TranscriptionRequest, TranscriptionResponse } from '@/protobufs/transcription'
 
 const Config = {
     // Sampling rate of the audio
@@ -37,6 +38,7 @@ export class AudioAnalyticsSession {
     private lastInitTime?: number
     private speechPresentInSample = false
     private eventListeners: Record<string, AnalyticsEventListener> = {}
+    private packetSerial = 0
 
     constructor(private stream: MediaStream) {
         this.recorder = new MediaRecorder(stream, { mimeType: Config.mimeType })
@@ -49,13 +51,20 @@ export class AudioAnalyticsSession {
 
     start() {
         this.ws = new WebSocket(Config.wsUrl)
+        this.ws.binaryType = 'arraybuffer'
+
         this.recorder.addEventListener('dataavailable', async (e) => {
             if (!this.speechPresentInSample) {
                 return
             }
             this.speechPresentInSample = false
             const buffer = await e.data.arrayBuffer()
-            this.ws?.send(buffer)
+            this.packetSerial += 1
+            const request = TranscriptionRequest.fromObject({
+                serial: this.packetSerial,
+                data: new Uint8Array(buffer)
+            })
+            this.ws?.send(request.serialize())
         })
         this.recorder.addEventListener('error', (e) => {
             console.error('Recording failed', e)
@@ -64,12 +73,9 @@ export class AudioAnalyticsSession {
         this.lastInitTime = Date.now()
         this.recorder.start()
         this.ws.onmessage = (msg) => {
-            const data = JSON.parse(msg.data as string)
-            if (!data.error) {
-                this.dispatchEvent({
-                    kind: 'text',
-                    text: data.text
-                })
+            const data = TranscriptionResponse.deserialize(new Uint8Array(msg.data))
+            if (data.code === 200) {
+                this.dispatchEvent({ kind: 'text', text: data.text })
             } else {
                 this.dispatchEvent({ kind: 'error' })
             }

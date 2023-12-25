@@ -6,6 +6,11 @@ RUN apt-get install --assume-yes protobuf-compiler
 
 WORKDIR /usr/src/app
 
+RUN curl https://get.volta.sh | bash
+RUN volta install node@20
+
+RUN npm install -g protoc-gen-ts
+
 COPY requirements.txt .
 COPY Makefile .
 

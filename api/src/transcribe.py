@@ -8,7 +8,7 @@ lib_transcribe = pipeline(
     "automatic-speech-recognition",
     model="openai/whisper-base.en",
     torch_dtype=torch.float16,
-    device="mps", # Needs cuda support
+    device="mps", # TODO: get this working with cpu if mps/cuda isn't available
 )
 
 async def transcribe_safe(byte_data, sample_rate=16_000):
@@ -20,4 +20,4 @@ async def transcribe_safe(byte_data, sample_rate=16_000):
         return out
     except Exception as e:
         print(f'Transcribe chunk failed in {time.time()-start:.2f}s', e)
-        return { "error": True }
+        return None 
