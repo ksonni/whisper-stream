@@ -1,57 +1,23 @@
-import threading
-import os, stat
-import uuid
 import time
 import torch
 
 from transformers import pipeline
+from transformers.pipelines.audio_utils import ffmpeg_read
 
-def make_pipeline():
-    pipe = pipeline(
-        "automatic-speech-recognition",
-        model="openai/whisper-base.en",
-        torch_dtype=torch.float16,
-        device="cuda:0" if torch.cuda.is_available() else "mps",
-    )
-    return pipe
+lib_transcribe = pipeline(
+    "automatic-speech-recognition",
+    model="openai/whisper-base.en",
+    torch_dtype=torch.float16,
+    device="cuda:0" if torch.cuda.is_available() else "mps",
+)
 
-lib_transcribe = make_pipeline()
-
-async def transcribe_opus(data):
+async def transcribe_safe(byte_data, sample_rate=16_000):
     start = time.time()
-    path = f'chunk-{str(uuid.uuid1())}.opus'
-
-    os.mkfifo(path)
-
-    results = [None]
-    supply_thread = threading.Thread(target=write_to_pipe, args=(path,data))
-    processing_thread = threading.Thread(target=transcribe, args=(path,results,))
-
-    supply_thread.start()
-    processing_thread.start()
-    processing_thread.join()
-    supply_thread.join()
-
-    clear_pipe(path)
-
-    print(f'Transcribed {path} in {time.time()-start:.2f}s')
-
-    return results[0]
-
-
-def clear_pipe(path):
-    if os.path.exists(path) and stat.S_ISFIFO(os.stat(path).st_mode):
-        os.unlink(path)
-
-
-def write_to_pipe(path, data):
-    with open(path, 'wb') as f:
-        f.write(data)
-
-
-def transcribe(path, results):
     try:
-        results[0] = lib_transcribe(path) 
+        data = ffmpeg_read(byte_data, sample_rate)
+        out = lib_transcribe(data)
+        print(f'Transcribed chunk in {time.time()-start:.2f}s')
+        return out
     except Exception as e:
-        print(f'Transcribe of pipe {path} failed', e)
-        results[0] = { "error": True }
+        print(f'Transcribe chunk failed in {time.time()-start:.2f}s', e)
+        return { "error": True }
