@@ -10,14 +10,14 @@ connected: Set[websockets.WebSocketServerProtocol] = set()
 
 async def observe_websocket(ws: websockets.WebSocketServerProtocol):
     connected.add(ws)
-    print("Websocket: opened")
+    print("Websocket: opened", ws.id)
     try:
         async for message in ws:
             await handle_transcription_request(ws, message)
     except websockets.ConnectionClosed as e:
-        print("Websocket: closed abnormally", e)
+        print("Websocket: closed abnormally", e, ws.id)
     finally:
-        print("Websocket: closed")
+        print("Websocket: closed", ws.id)
         connected.remove(ws)
 
 

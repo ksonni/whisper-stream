@@ -3,6 +3,7 @@ import torch
 
 from transformers import pipeline
 from transformers.pipelines.audio_utils import ffmpeg_read
+import numpy as np
 
 from typing import Dict 
 
@@ -16,8 +17,9 @@ lib_transcribe = pipeline(
 async def transcribe_safe(byte_data: bytes, sample_rate=16_000) -> Dict | None:
     start = time.time()
     try:
-        data: bytes = ffmpeg_read(byte_data, sample_rate)
-        out = lib_transcribe(data)
+        data: np.ndarray = ffmpeg_read(byte_data, sample_rate)
+        print(f'Transcribing chunk of duration {data.size/sample_rate:.2f}s')
+        out = lib_transcribe(data, chunk_length_s=24)
         print(f'Transcribed chunk in {time.time()-start:.2f}s')
         return out
     except Exception as e:
