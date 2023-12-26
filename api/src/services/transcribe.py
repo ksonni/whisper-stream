@@ -3,17 +3,10 @@ import torch
 import numpy as np
 import protobufs.transcription_pb2 as pb
 
-from transformers import pipeline
+from transformers import pipeline, Pipeline
 from typing import Dict, List
 from config import Config
 from dataclasses import dataclass
-
-lib_transcribe = pipeline(
-    "automatic-speech-recognition",
-    model="openai/whisper-base.en",
-    torch_dtype=torch.float16,
-    device="cuda:0" if torch.cuda.is_available() else "mps",
-)
 
 # Need to use this because proto isn't picklable :(
 @dataclass
@@ -24,6 +17,7 @@ class RawTranscriptionResult:
 def transcribe_safe(data: np.ndarray, timestamp: int, sample_rate=Config.sampling_rate) -> RawTranscriptionResult:
     start = time.time()
     try:
+        lib_transcribe = TranscribeModel.get_instance()
         print(f'Transcribing chunk of duration {data.size/sample_rate:.2f}s')
         out = lib_transcribe(data, chunk_length_s=24, return_timestamps=True)
         print(f'Transcribed chunk in {time.time()-start:.2f}s')
@@ -34,7 +28,7 @@ def transcribe_safe(data: np.ndarray, timestamp: int, sample_rate=Config.samplin
 
 # Helpers
 
-def decode_raw_result(r: RawTranscriptionResult) -> RawTranscriptionResult:
+def decode_raw_result(r: RawTranscriptionResult) -> pb.TranscriptionResult:
     raw_chunks: List[Dict] = []
     output = r.result
     if output is not None and 'chunks' in output:
@@ -56,3 +50,20 @@ def __build_chunk(output: Dict) -> pb.TranscriptionChunk:
     if 'text' in output:
         chunk.text = output['text']
     return chunk
+
+class TranscribeModel:
+    __pipeline: Pipeline | bool = False 
+
+    @staticmethod
+    def get_instance() -> Pipeline:
+        if isinstance(TranscribeModel.__pipeline, Pipeline):
+            return TranscribeModel.__pipeline
+        else:
+            pipe = pipeline(
+                "automatic-speech-recognition",
+                model="openai/whisper-base.en",
+                torch_dtype=torch.float16,
+                device="cuda:0" if torch.cuda.is_available() else "mps",
+            )
+            TranscribeModel.__pipeline = pipe 
+            return pipe

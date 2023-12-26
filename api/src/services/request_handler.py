@@ -63,7 +63,7 @@ class RequestHandler:
     def __receive_transcribe_error(self, err: Any):
         print("An unexpected occured when transcribing", err)
         asyncio.run_coroutine_threadsafe(
-            self.__handle_transcribe_result(RawTranscriptionResult(None, None)), self.loop)
+            self.__handle_transcribe_result(RawTranscriptionResult(0, None)), self.loop)
 
     async def __handle_transcribe_result(self, raw: RawTranscriptionResult):
         result = decode_raw_result(raw)
@@ -73,7 +73,7 @@ class RequestHandler:
 
     @staticmethod
     def __get_shared_pool() -> PoolType:
-        if type(RequestHandler.__shared_pool) == PoolType:
+        if isinstance(RequestHandler.__shared_pool, PoolType):
             return RequestHandler.__shared_pool
         else:
             pool = Pool(processes=1)
