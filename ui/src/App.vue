@@ -48,8 +48,7 @@ export default defineComponent({
             console.log('Got an anlytics event', event)
             switch (event.kind) {
                 case 'text':
-                    this.text += event.text
-                    console.log(this.text)
+                    this.text = event.text
                     break
                 case 'error':
                     break
