@@ -4,6 +4,7 @@ import websockets
 from uuid import UUID
 from typing import Dict
 from services import RequestHandler
+from config import Config
 
 handlers: Dict[UUID, RequestHandler] = {}
 
@@ -21,7 +22,7 @@ async def observe_websocket(ws: websockets.WebSocketServerProtocol):
         handlers.pop(ws.id)
 
 if __name__ ==  '__main__':
-    print("Starting server on port 3000")
-    start_server = websockets.serve(observe_websocket, "0.0.0.0", 3000)
+    print(f'Starting server on port: {Config.server_port}')
+    start_server = websockets.serve(observe_websocket, "0.0.0.0", Config.server_port)
     asyncio.get_event_loop().run_until_complete(start_server)
     asyncio.get_event_loop().run_forever()

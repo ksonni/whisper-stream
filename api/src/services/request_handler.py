@@ -8,8 +8,7 @@ from multiprocessing import Pool
 from multiprocessing.pool import Pool as PoolType
 from .transcribe import transcribe_safe, TranscribeResult
 from typing import Any
-
-SAMPLING_RATE=16_000
+from config import Config
 
 class RequestHandler:
     
@@ -30,7 +29,7 @@ class RequestHandler:
             return
         data = np.array(request.data, dtype=np.float32)
         self.current_snippet = np.concatenate((self.current_snippet, data))
-        if self.current_snippet.size >= SAMPLING_RATE and not self.transcribing:
+        if self.current_snippet.size >= Config.sampling_rate and not self.transcribing:
             self.__transcribe_current_snippet()
 
     async def send_response(self, proto: Any):
@@ -51,7 +50,7 @@ class RequestHandler:
         timestamp = round(time.time() * 1000)
         self.pool.apply_async(
             transcribe_safe, 
-            args=(self.current_snippet,timestamp,SAMPLING_RATE), 
+            args=(self.current_snippet,timestamp), 
             callback=self.__receive_transcribe_result,
         )
 
@@ -77,5 +76,3 @@ class RequestHandler:
             pool = Pool(processes=1)
             RequestHandler.__shared_pool = pool
             return pool
-
-   

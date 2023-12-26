@@ -5,6 +5,7 @@ import numpy as np
 from transformers import pipeline
 from typing import Dict
 from dataclasses import dataclass
+from config import Config
 
 lib_transcribe = pipeline(
     "automatic-speech-recognition",
@@ -18,7 +19,7 @@ class TranscribeResult:
     timestamp: int 
     result: Dict | None
 
-def transcribe_safe(data: np.ndarray, timestamp: int, sample_rate=16_000) -> TranscribeResult:
+def transcribe_safe(data: np.ndarray, timestamp: int, sample_rate=Config.sampling_rate) -> TranscribeResult:
     start = time.time()
     try:
         print(f'Transcribing chunk of duration {data.size/sample_rate:.2f}s')
