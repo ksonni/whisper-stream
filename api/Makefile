@@ -8,4 +8,4 @@ type_check:
 	mypy src
 
 run:
-	python src/server.py
+	python src/main.py

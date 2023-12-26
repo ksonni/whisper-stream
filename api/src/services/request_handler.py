@@ -1,17 +1,17 @@
+import asyncio
+import numpy as np
+import protobufs.transcription_pb2 as pb
+import time
+
 from websockets import WebSocketServerProtocol
 from multiprocessing import Pool
 from multiprocessing.pool import Pool as PoolType
-
-from transcribe import transcribe_safe, TranscribeResult
-import protobufs.transcription_pb2 as pb
+from .transcribe import transcribe_safe, TranscribeResult
 from typing import Any
-import asyncio
-import numpy as np
-import time
 
 SAMPLING_RATE=16_000
 
-class TranscriptionManager:
+class RequestHandler:
     
     __shared_pool: PoolType | bool = False 
 
@@ -71,11 +71,11 @@ class TranscriptionManager:
 
     @staticmethod
     def __get_shared_pool() -> PoolType:
-        if type(TranscriptionManager.__shared_pool) == PoolType:
-            return TranscriptionManager.__shared_pool
+        if type(RequestHandler.__shared_pool) == PoolType:
+            return RequestHandler.__shared_pool
         else:
             pool = Pool(processes=1)
-            TranscriptionManager.__shared_pool = pool
+            RequestHandler.__shared_pool = pool
             return pool
 
    

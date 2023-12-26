@@ -1,24 +1,24 @@
-from typing import Dict
 import asyncio
-from uuid import UUID
 import websockets
 
-from transcription_manager import TranscriptionManager
+from uuid import UUID
+from typing import Dict
+from services import RequestHandler
 
-managers: Dict[UUID, TranscriptionManager] = {}
+handlers: Dict[UUID, RequestHandler] = {}
 
 async def observe_websocket(ws: websockets.WebSocketServerProtocol):
-    manager = TranscriptionManager(ws)
-    managers[ws.id] =  manager
+    handler = RequestHandler(ws)
+    handlers[ws.id] =  handler
     print("Websocket: opened", ws.id)
     try:
         async for message in ws:
-            await manager.handle_request(message)
+            await handler.handle_request(message)
     except websockets.ConnectionClosed as e:
         print("Websocket: closed abnormally", e, ws.id)
     finally:
         print("Websocket: closed", ws.id)
-        managers.pop(ws.id)
+        handlers.pop(ws.id)
 
 if __name__ ==  '__main__':
     print("Starting server on port 3000")

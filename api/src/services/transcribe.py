@@ -10,7 +10,7 @@ lib_transcribe = pipeline(
     "automatic-speech-recognition",
     model="openai/whisper-base.en",
     torch_dtype=torch.float16,
-    device="mps", # TODO: get this working with cpu if mps/cuda isn't available
+    device="cuda:0" if torch.cuda.is_available() else "mps",
 )
 
 @dataclass
