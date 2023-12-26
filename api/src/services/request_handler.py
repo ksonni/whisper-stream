@@ -6,7 +6,8 @@ import time
 from websockets import WebSocketServerProtocol
 from multiprocessing import Pool
 from multiprocessing.pool import Pool as PoolType
-from .transcribe import transcribe_safe, TranscribeResult
+from .transcribe import transcribe_safe, RawTranscriptionResult, decode_raw_result 
+from .audio_chunk_manager import AudioChunkManager
 from typing import Any
 from config import Config
 
@@ -18,7 +19,7 @@ class RequestHandler:
         self.ws = ws
         self.pool = type(self).__get_shared_pool()
         self.loop = asyncio.get_event_loop()
-        self.current_snippet = np.array([], dtype=np.float32)
+        self.chunk_manager = AudioChunkManager()
         self.transcribing = False
 
     async def handle_request(self, msg: str | bytes):
@@ -28,9 +29,9 @@ class RequestHandler:
             print("Failed to serialize transcription request", e)
             return
         data = np.array(request.data, dtype=np.float32)
-        self.current_snippet = np.concatenate((self.current_snippet, data))
-        if self.current_snippet.size >= Config.sampling_rate and not self.transcribing:
-            self.__transcribe_current_snippet()
+        self.chunk_manager.append_audio(data)
+        if self.chunk_manager.buffer.size >= Config.sampling_rate and not self.transcribing:
+            self.__transcribe_current_buffer()
 
     async def send_response(self, proto: Any):
         try:
@@ -45,28 +46,29 @@ class RequestHandler:
             raise(TypeError("Got unexpected type of websocket message"))
         return pb.TranscriptionRequest.FromString(msg)
     
-    def __transcribe_current_snippet(self):
+    def __transcribe_current_buffer(self):
         self.transcribing = True
         timestamp = round(time.time() * 1000)
         self.pool.apply_async(
             transcribe_safe, 
-            args=(self.current_snippet,timestamp), 
+            args=(self.chunk_manager.buffer,timestamp), 
             callback=self.__receive_transcribe_result,
+            error_callback=self.__receive_transcribe_error
         )
 
-    def __receive_transcribe_result(self, r: TranscribeResult):
+    def __receive_transcribe_result(self, raw: RawTranscriptionResult):
         # Relaying result back from the worker thread to the main thread to free up worker
-        asyncio.run_coroutine_threadsafe(self.__handle_transcribe_result(r), self.loop)
-        
-    async def __handle_transcribe_result(self, r: TranscribeResult):
+        asyncio.run_coroutine_threadsafe(self.__handle_transcribe_result(raw), self.loop)
+
+    def __receive_transcribe_error(self, err: Any):
+        print("An unexpected occured when transcribing", err)
+        asyncio.run_coroutine_threadsafe(
+            self.__handle_transcribe_result(RawTranscriptionResult(None, None)), self.loop)
+
+    async def __handle_transcribe_result(self, raw: RawTranscriptionResult):
+        result = decode_raw_result(raw)
         self.transcribing = False
-        result = r.result
-        response = pb.TranscriptionResponse(
-            timestamp=r.timestamp,
-            code=200 if result is not None else 500,
-            text= result['text'] if result is not None and 'text' in result else None,
-        )
-        await self.send_response(response)
+        await self.send_response(result)
 
     @staticmethod
     def __get_shared_pool() -> PoolType:

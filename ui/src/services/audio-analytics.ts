@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import { TranscriptionRequest, TranscriptionResponse } from '@/protobufs/transcription'
+import { TranscriptionRequest, TranscriptionResult } from '@/protobufs/transcription'
 import workerUrl from './audio-recorder-worklet.js?worker&url'
 
 const Config = {
@@ -44,9 +44,10 @@ export class AudioAnalyticsSession {
         this.ws = new WebSocket(Config.wsUrl)
         this.ws.binaryType = 'arraybuffer'
         this.ws.onmessage = (msg) => {
-            const data = TranscriptionResponse.deserialize(new Uint8Array(msg.data))
+            const data = TranscriptionResult.deserialize(new Uint8Array(msg.data))
             if (data.code === 200) {
-                this.dispatchEvent({ kind: 'text', text: data.text })
+                const text = data.chunks.map((c) => c.text).join()
+                this.dispatchEvent({ kind: 'text', text })
             } else {
                 this.dispatchEvent({ kind: 'error' })
             }
