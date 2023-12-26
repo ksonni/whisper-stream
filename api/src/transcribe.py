@@ -1,13 +1,9 @@
 import time
 import torch
+import numpy as np
 
 from transformers import pipeline
-from transformers.pipelines.audio_utils import ffmpeg_read
-import numpy as np
-from uuid import UUID
-
 from typing import Dict
-
 from dataclasses import dataclass
 
 lib_transcribe = pipeline(
@@ -19,17 +15,16 @@ lib_transcribe = pipeline(
 
 @dataclass
 class TranscribeResult:
-    serial: int 
+    timestamp: int 
     result: Dict | None
 
-def transcribe_safe(byte_data: bytes, serial: int, sample_rate=16_000) -> TranscribeResult:
+def transcribe_safe(data: np.ndarray, timestamp: int, sample_rate=16_000) -> TranscribeResult:
     start = time.time()
     try:
-        data: np.ndarray = ffmpeg_read(byte_data, sample_rate)
         print(f'Transcribing chunk of duration {data.size/sample_rate:.2f}s')
-        out = lib_transcribe(data, chunk_length_s=24)
+        out = lib_transcribe(data, chunk_length_s=24, return_timestamps=True)
         print(f'Transcribed chunk in {time.time()-start:.2f}s')
-        return TranscribeResult(serial, out)
+        return TranscribeResult(timestamp, out)
     except Exception as e:
         print(f'Transcribe chunk failed in {time.time()-start:.2f}s', e)
-        return TranscribeResult(serial, None)
+        return TranscribeResult(timestamp, None)

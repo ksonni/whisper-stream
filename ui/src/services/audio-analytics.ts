@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import { TranscriptionRequest, TranscriptionResponse } from '@/protobufs/transcription'
+import workerUrl from './audio-recorder-worklet.js?worker&url'
 
 const Config = {
     // Sampling rate of the audio
@@ -26,52 +27,22 @@ export type AnalyticsEvent =
 export type AnalyticsEventListener = (e: AnalyticsEvent) => void
 
 export class AudioAnalyticsSession {
-    private recorder: MediaRecorder
     private ws?: WebSocket
     private timer?: number
     private detectSpeechLoop?: number
-    private audioContext = new AudioContext()
     private source: MediaStreamAudioSourceNode
-    private analyzer: AnalyserNode
-    private domainData: Uint8Array
-    private lastSpeechTime?: number
-    private lastInitTime?: number
-    private speechPresentInSample = false
     private eventListeners: Record<string, AnalyticsEventListener> = {}
-    private packetSerial = 0
 
-    constructor(private stream: MediaStream) {
-        this.recorder = new MediaRecorder(stream, { mimeType: Config.mimeType })
+    constructor(
+        private stream: MediaStream,
+        private audioContext: AudioContext
+    ) {
         this.source = this.audioContext.createMediaStreamSource(this.stream)
-        this.analyzer = this.audioContext.createAnalyser()
-        this.analyzer.minDecibels = Config.minSpeakingAmplitude
-        this.source.connect(this.analyzer)
-        this.domainData = new Uint8Array(this.analyzer.frequencyBinCount)
     }
 
     start() {
         this.ws = new WebSocket(Config.wsUrl)
         this.ws.binaryType = 'arraybuffer'
-
-        this.recorder.addEventListener('dataavailable', async (e) => {
-            if (!this.speechPresentInSample) {
-                return
-            }
-            this.speechPresentInSample = false
-            const buffer = await e.data.arrayBuffer()
-            this.packetSerial += 1
-            const request = TranscriptionRequest.fromObject({
-                serial: this.packetSerial,
-                data: new Uint8Array(buffer)
-            })
-            this.ws?.send(request.serialize())
-        })
-        this.recorder.addEventListener('error', (e) => {
-            console.error('Recording failed', e)
-            this.dispatchEvent({ kind: 'error' })
-        })
-        this.lastInitTime = Date.now()
-        this.recorder.start()
         this.ws.onmessage = (msg) => {
             const data = TranscriptionResponse.deserialize(new Uint8Array(msg.data))
             if (data.code === 200) {
@@ -84,39 +55,27 @@ export class AudioAnalyticsSession {
             console.error('Websocket error!', e)
             this.dispatchEvent({ kind: 'error' })
         }
-
-        const detectSpeech = () => {
-            this.analyzer.getByteFrequencyData(this.domainData)
-
-            // TODO: be more selective about human voice frequency?
-            const speaking = this.domainData.some((data) => data > 0)
-
-            if (speaking) {
-                this.speechPresentInSample = true
-                this.lastSpeechTime = Date.now()
+        const node = new AudioWorkletNode(this.audioContext, 'audio-recorder')
+        node.port.onmessage = (e) => {
+            const data = e?.data as Float32Array
+            if (!data) {
+                return
             }
-            const now = Date.now()
-
-            const silentForLongEnough =
-                !speaking &&
-                this.lastSpeechTime &&
-                now - this.lastSpeechTime >= Config.minSilenceInterval
-
-            const recordingTooLong =
-                this.lastInitTime && now - this.lastInitTime >= Config.maxSplitInterval
-
-            if (silentForLongEnough || recordingTooLong) {
-                this.lastSpeechTime = undefined
-                this.reinitRecorder()
+            if (this.ws?.readyState !== WebSocket.OPEN) {
+                return
             }
-            this.detectSpeechLoop = window.requestAnimationFrame(detectSpeech)
+            const request = TranscriptionRequest.fromObject({
+                data: Array.from(data)
+            })
+            this.ws?.send(request.serialize())
         }
-        this.detectSpeechLoop = window.requestAnimationFrame(detectSpeech)
+        this.source.connect(node).connect(this.audioContext.destination)
     }
 
     stop() {
         this.stream.getTracks().forEach((track) => track.stop())
-        this.recorder.stop()
+        this.audioContext.close()
+        this.source?.disconnect()
         this.ws?.close()
         this.ws = undefined
         if (this.timer) {
@@ -141,17 +100,12 @@ export class AudioAnalyticsSession {
         Object.values(this.eventListeners).forEach((cb) => cb(e))
     }
 
-    // This finalizes a sample which makes it ready for analysis
-    private reinitRecorder() {
-        this.recorder.stop()
-        this.recorder.start()
-        this.lastInitTime = Date.now()
-    }
-
     static async create(): Promise<AudioAnalyticsSession> {
         const stream = await navigator.mediaDevices.getUserMedia({
             audio: { sampleRate: Config.samplingRate }
         })
-        return new AudioAnalyticsSession(stream)
+        const audioContext = new AudioContext({ sampleRate: Config.samplingRate })
+        await audioContext.audioWorklet.addModule(workerUrl)
+        return new AudioAnalyticsSession(stream, audioContext)
     }
 }

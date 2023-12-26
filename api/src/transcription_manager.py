@@ -6,8 +6,10 @@ from transcribe import transcribe_safe, TranscribeResult
 import protobufs.transcription_pb2 as pb
 from typing import Any
 import asyncio
+import numpy as np
+import time
 
-# Make this global lazily
+SAMPLING_RATE=16_000
 
 class TranscriptionManager:
     
@@ -17,6 +19,8 @@ class TranscriptionManager:
         self.ws = ws
         self.pool = type(self).__get_shared_pool()
         self.loop = asyncio.get_event_loop()
+        self.current_snippet = np.array([], dtype=np.float32)
+        self.transcribing = False
 
     async def handle_request(self, msg: str | bytes):
         try:
@@ -24,12 +28,10 @@ class TranscriptionManager:
         except Exception as e:
             print("Failed to serialize transcription request", e)
             return
-        print("Handle request happened!!")
-        self.pool.apply_async(
-            transcribe_safe, 
-            args=(request.data,request.serial), 
-            callback=self.__handle_transcribe_result,
-        )
+        data = np.array(request.data, dtype=np.float32)
+        self.current_snippet = np.concatenate((self.current_snippet, data))
+        if self.current_snippet.size >= SAMPLING_RATE and not self.transcribing:
+            self.__transcribe_current_snippet()
 
     async def send_response(self, proto: Any):
         try:
@@ -43,16 +45,29 @@ class TranscriptionManager:
         if not isinstance(msg, bytes):
             raise(TypeError("Got unexpected type of websocket message"))
         return pb.TranscriptionRequest.FromString(msg)
+    
+    def __transcribe_current_snippet(self):
+        self.transcribing = True
+        timestamp = round(time.time() * 1000)
+        self.pool.apply_async(
+            transcribe_safe, 
+            args=(self.current_snippet,timestamp,SAMPLING_RATE), 
+            callback=self.__receive_transcribe_result,
+        )
 
-    def __handle_transcribe_result(self, r: TranscribeResult):
+    def __receive_transcribe_result(self, r: TranscribeResult):
+        # Relaying result back from the worker thread to the main thread to free up worker
+        asyncio.run_coroutine_threadsafe(self.__handle_transcribe_result(r), self.loop)
+        
+    async def __handle_transcribe_result(self, r: TranscribeResult):
+        self.transcribing = False
         result = r.result
         response = pb.TranscriptionResponse(
-            serial=r.serial,
+            timestamp=r.timestamp,
             code=200 if result is not None else 500,
             text= result['text'] if result is not None and 'text' in result else None,
         )
-        asyncio.run_coroutine_threadsafe(
-            self.send_response(response), self.loop)
+        await self.send_response(response)
 
     @staticmethod
     def __get_shared_pool() -> PoolType:
