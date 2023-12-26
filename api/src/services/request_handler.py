@@ -67,6 +67,7 @@ class RequestHandler:
 
     async def __handle_transcribe_result(self, raw: RawTranscriptionResult):
         result = decode_raw_result(raw)
+        self.chunk_manager.append_result(result)
         self.transcribing = False
         await self.send_response(result)
 
