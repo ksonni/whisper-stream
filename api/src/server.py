@@ -20,8 +20,8 @@ async def observe_websocket(ws: websockets.WebSocketServerProtocol):
         print("Websocket: closed", ws.id)
         managers.pop(ws.id)
 
-print("Starting server on port 3000")
-
-start_server = websockets.serve(observe_websocket, "0.0.0.0", 3000)
-asyncio.get_event_loop().run_until_complete(start_server)
-asyncio.get_event_loop().run_forever()
+if __name__ ==  '__main__':
+    print("Starting server on port 3000")
+    start_server = websockets.serve(observe_websocket, "0.0.0.0", 3000)
+    asyncio.get_event_loop().run_until_complete(start_server)
+    asyncio.get_event_loop().run_forever()
