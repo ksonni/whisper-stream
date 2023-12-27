@@ -1,9 +1,11 @@
-import unittest
-import numpy as np
 import math
+import unittest
+
+import numpy as np
+from config import Config
 
 from .audio_buffer import AudioBuffer
-from config import Config
+
 
 class TestAudioBuffer(unittest.TestCase):
 
@@ -24,7 +26,7 @@ class TestAudioBuffer(unittest.TestCase):
         self.assertEqual(b.size(), 4 * Config.sampling_rate)
         self.assertEqual(b.current_start_time(), 1000)
 
-        b.prune_until_time(800) # before start, so nothing happens
+        b.prune_until_time(800)  # before start, so nothing happens
         self.assertEqual(b.size(), 4 * Config.sampling_rate)
         self.assertEqual(b.current_start_time(), 1000)
 
@@ -32,7 +34,7 @@ class TestAudioBuffer(unittest.TestCase):
         self.assertEqual(b.size(), 0)
         self.assertEqual(b.current_start_time(), 5000)
 
-        b.prune_until_time(6000) # longer than current buffer
+        b.prune_until_time(6000)  # longer than current buffer
         self.assertEqual(b.size(), 0)
         self.assertEqual(b.current_start_time(), 6000)
 

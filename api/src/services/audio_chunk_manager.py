@@ -1,8 +1,10 @@
+from typing import List
+
 import numpy as np
 import protobufs.transcription_pb2 as pb
 
-from typing import List
 from .audio_buffer import AudioBuffer
+
 
 class AudioChunkManager:
     def __init__(self):
