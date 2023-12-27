@@ -3,11 +3,9 @@ from dataclasses import dataclass
 from typing import Dict, List
 from uuid import UUID
 
-import torch
-from transformers import pipeline, Pipeline
-
 from config import Config
 from .audio_buffer import AudioBuffer
+from .whisper_model import WhisperModel
 
 
 @dataclass
@@ -72,35 +70,10 @@ def transcribe_safe(r: TranscriptionParams, sample_rate=Config.sampling_rate) ->
     start = time.time()
     try:
         print(f'Transcribing chunk of duration {r.buffer.size / sample_rate:.2f}s')
-        out = WhisperModel.transcribe(r.buffer.bytes(), chunk_length_s=10, return_timestamps=True)
+        out = WhisperModel.transcribe(r.buffer.bytes())
+        print(out)
         print(f'Transcribed chunk in {time.time() - start:.2f}s')
         return TranscriptionResult(r, out)
     except Exception as e:
         print(f'Transcribe chunk failed in {time.time() - start:.2f}s', e)
         return TranscriptionResult(r, None)
-
-
-# Helpers
-
-class __Model:
-    def __init__(self):
-        self.__pipeline: Pipeline | bool = False
-
-    @property
-    def transcribe(self) -> Pipeline:
-        if isinstance(self.__pipeline, Pipeline):
-            return self.__pipeline
-        return self.load()
-
-    def load(self) -> Pipeline:
-        pipe = pipeline(
-            "automatic-speech-recognition",
-            model="openai/whisper-base.en",
-            torch_dtype=torch.float16,
-            device="cuda:0" if torch.cuda.is_available() else "mps",
-        )
-        self.__pipeline = pipe
-        return pipe
-
-
-WhisperModel = __Model()
