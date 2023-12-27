@@ -1,16 +1,15 @@
 import asyncio
-import time
 from multiprocessing import Pool
 from multiprocessing.pool import Pool as PoolType
 from typing import Any
+from uuid import uuid4 as uuid
 
 import numpy as np
-import protobufs.transcription_pb2 as pb
-from config import Config
 from websockets import WebSocketServerProtocol
 
+import protobufs.transcription_pb2 as pb
 from .audio_chunk_manager import AudioChunkManager
-from .transcribe import transcribe_safe, RawTranscriptionResult, decode_raw_result
+from .transcribe import transcribe_safe, TranscriptionParams, TranscriptionResult
 
 
 class RequestHandler:
@@ -31,7 +30,7 @@ class RequestHandler:
             return
         data = np.array(request.data, dtype=np.float32)
         self.chunk_manager.append_audio(data)
-        if self.chunk_manager.buffer.size() >= Config.sampling_rate and not self.transcribing:
+        if self.chunk_manager.has_min_buffer and not self.transcribing:
             self.__transcribe_current_buffer()
 
     async def send_response(self, proto: Any):
@@ -40,37 +39,44 @@ class RequestHandler:
         except Exception as e:
             print("Failed to send message to client", e)
 
-    # Helpers 
-
-    def __parse_request(self, msg: str | bytes) -> pb.TranscriptionRequest:
-        if not isinstance(msg, bytes):
-            raise (TypeError("Got unexpected type of websocket message"))
-        return pb.TranscriptionRequest.FromString(msg)
+    # Helpers
 
     def __transcribe_current_buffer(self):
         self.transcribing = True
-        timestamp = round(time.time() * 1000)
+        params = TranscriptionParams(uuid(), self.chunk_manager.copy_buffer())
         self.pool.apply_async(
             transcribe_safe,
-            args=(self.chunk_manager.buffer.bytes(), timestamp),
+            args=(params,),
             callback=self.__receive_transcribe_result,
             error_callback=self.__receive_transcribe_error
         )
 
-    def __receive_transcribe_result(self, raw: RawTranscriptionResult):
-        # Relaying result back from the worker thread to the main thread to free up worker
+    def __receive_transcribe_result(self, raw: TranscriptionResult):
         asyncio.run_coroutine_threadsafe(self.__handle_transcribe_result(raw), self.loop)
 
     def __receive_transcribe_error(self, err: Any):
-        print("An unexpected occured when transcribing", err)
-        asyncio.run_coroutine_threadsafe(
-            self.__handle_transcribe_result(RawTranscriptionResult(0, None)), self.loop)
+        # This is an IPC programming error - transcribe_safe should handle all exceptions
+        raise AssertionError("A fatal error occurred when receiving transcription result", err)
 
-    async def __handle_transcribe_result(self, raw: RawTranscriptionResult):
-        result = decode_raw_result(raw)
+    async def __handle_transcribe_result(self, result: TranscriptionResult):
         self.chunk_manager.append_result(result)
         self.transcribing = False
-        await self.send_response(result)
+        await self.send_response(pb.TranscriptionResponse(
+            buffer_start=result.start,
+            buffer_end=result.end,
+            code=200 if result.chunks is not None else 500,
+            chunks=map(lambda c: pb.TranscriptionChunk(
+                text=c.text,
+                start_time=c.start_time,
+                end_time=c.end_time
+            ), result.chunks or [])
+        ))
+
+    @staticmethod
+    def __parse_request(msg: str | bytes) -> pb.TranscriptionRequest:
+        if not isinstance(msg, bytes):
+            raise (TypeError("Got unexpected type of websocket message"))
+        return pb.TranscriptionRequest.FromString(msg)
 
     @staticmethod
     def __get_shared_pool() -> PoolType:
