@@ -1,12 +1,13 @@
 import time
-import torch
+from dataclasses import dataclass
+from typing import Dict, List
+
 import numpy as np
 import protobufs.transcription_pb2 as pb
-
-from transformers import pipeline, Pipeline
-from typing import Dict, List
+import torch
 from config import Config
-from dataclasses import dataclass
+from transformers import pipeline, Pipeline
+
 
 # Need to use this because proto isn't picklable :(
 @dataclass
@@ -14,17 +15,19 @@ class RawTranscriptionResult:
     timestamp: int
     result: Dict | None
 
+
 def transcribe_safe(data: np.ndarray, timestamp: int, sample_rate=Config.sampling_rate) -> RawTranscriptionResult:
     start = time.time()
     try:
         lib_transcribe = TranscribeModel.get_instance()
-        print(f'Transcribing chunk of duration {data.size/sample_rate:.2f}s')
+        print(f'Transcribing chunk of duration {data.size / sample_rate:.2f}s')
         out = lib_transcribe(data, chunk_length_s=24, return_timestamps=True)
-        print(f'Transcribed chunk in {time.time()-start:.2f}s')
+        print(f'Transcribed chunk in {time.time() - start:.2f}s')
         return RawTranscriptionResult(timestamp, out)
     except Exception as e:
-        print(f'Transcribe chunk failed in {time.time()-start:.2f}s', e)
+        print(f'Transcribe chunk failed in {time.time() - start:.2f}s', e)
         return RawTranscriptionResult(timestamp, None)
+
 
 # Helpers
 
@@ -39,20 +42,22 @@ def decode_raw_result(r: RawTranscriptionResult) -> pb.TranscriptionResult:
         chunks=map(__build_chunk, raw_chunks),
     )
 
+
 def __build_chunk(output: Dict) -> pb.TranscriptionChunk:
     chunk = pb.TranscriptionChunk()
     if 'timestamp' in output:
         timestamp: tuple[float, float] = output['timestamp']
         if len(timestamp) > 0:
-            chunk.start_time = round(timestamp[0] * 1000) # Convert to millis
+            chunk.start_time = round(timestamp[0] * 1000)  # Convert to millis
         if len(timestamp) > 1:
-            chunk.end_time = round(timestamp[1] * 1000) # Convert to millis
+            chunk.end_time = round(timestamp[1] * 1000)  # Convert to millis
     if 'text' in output:
         chunk.text = output['text']
     return chunk
 
+
 class TranscribeModel:
-    __pipeline: Pipeline | bool = False 
+    __pipeline: Pipeline | bool = False
 
     @staticmethod
     def get_instance() -> Pipeline:
@@ -65,5 +70,5 @@ class TranscribeModel:
                 torch_dtype=torch.float16,
                 device="cuda:0" if torch.cuda.is_available() else "mps",
             )
-            TranscribeModel.__pipeline = pipe 
+            TranscribeModel.__pipeline = pipe
             return pipe

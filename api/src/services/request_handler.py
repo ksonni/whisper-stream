@@ -1,19 +1,20 @@
 import asyncio
-import numpy as np
-import protobufs.transcription_pb2 as pb
 import time
-
-from websockets import WebSocketServerProtocol
 from multiprocessing import Pool
 from multiprocessing.pool import Pool as PoolType
-from .transcribe import transcribe_safe, RawTranscriptionResult, decode_raw_result 
-from .audio_chunk_manager import AudioChunkManager
 from typing import Any
+
+import numpy as np
+import protobufs.transcription_pb2 as pb
 from config import Config
+from websockets import WebSocketServerProtocol
+
+from .audio_chunk_manager import AudioChunkManager
+from .transcribe import transcribe_safe, RawTranscriptionResult, decode_raw_result
+
 
 class RequestHandler:
-    
-    __shared_pool: PoolType | bool = False 
+    __shared_pool: PoolType | bool = False
 
     def __init__(self, ws: WebSocketServerProtocol):
         self.ws = ws
@@ -43,15 +44,15 @@ class RequestHandler:
 
     def __parse_request(self, msg: str | bytes) -> pb.TranscriptionRequest:
         if not isinstance(msg, bytes):
-            raise(TypeError("Got unexpected type of websocket message"))
+            raise (TypeError("Got unexpected type of websocket message"))
         return pb.TranscriptionRequest.FromString(msg)
-    
+
     def __transcribe_current_buffer(self):
         self.transcribing = True
         timestamp = round(time.time() * 1000)
         self.pool.apply_async(
-            transcribe_safe, 
-            args=(self.chunk_manager.buffer.bytes(),timestamp), 
+            transcribe_safe,
+            args=(self.chunk_manager.buffer.bytes(), timestamp),
             callback=self.__receive_transcribe_result,
             error_callback=self.__receive_transcribe_error
         )
