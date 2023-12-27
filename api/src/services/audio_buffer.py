@@ -1,4 +1,5 @@
 import numpy as np
+import math
 
 from config import Config
 
@@ -16,15 +17,22 @@ class AudioBuffer:
         n_milis = round(n_seconds*1000)
         return self.__current_start_time + n_milis
     
-    def prune_before_time(self, time_milis: int):
-        if time_milis < self.current_start_time():
+    def append(self, frames: np.ndarray):
+        self.__buffer = np.concatenate((self.__buffer, frames))
+
+    def size(self) -> int:
+        return self.__buffer.size
+
+    def prune_until_time(self, time_milis: int):
+        if time_milis < self.__current_start_time:
             return
-        interval_milis = (time_milis - self.__current_start_time)
-        interval_seconds = interval_milis / 1000
-        n_frames: int =  round(interval_seconds / self.__sampling_rate)
-        if len(self.__buffer) > n_frames:
-            self.__buffer = np.delete(self.__buffer, slice(n_frames))
-        else:
-            self.__buffer = np.empty_like(self.__buffer)
-        self.__current_start_time = time_milis 
+        duration_sec = (time_milis - self.__current_start_time) / 1000
+        n_frames = math.floor(duration_sec * self.__sampling_rate)
+        n_range = slice(min(n_frames,self.__buffer.size))
+        self.__buffer = np.delete(self.__buffer, n_range)
+        self.__current_start_time = time_milis
+
+    # TODO: not ideal
+    def bytes(self) -> np.ndarray:
+        return self.__buffer 
     

@@ -5,7 +5,7 @@ install:
 	pip install -r requirements.txt
 
 type_check:
-	mypy src
+	mypy src --check-untyped-defs
 
 test:
 	python -m unittest discover ./src

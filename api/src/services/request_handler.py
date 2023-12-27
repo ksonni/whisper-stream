@@ -30,7 +30,7 @@ class RequestHandler:
             return
         data = np.array(request.data, dtype=np.float32)
         self.chunk_manager.append_audio(data)
-        if self.chunk_manager.buffer.size >= Config.sampling_rate and not self.transcribing:
+        if self.chunk_manager.buffer.size() >= Config.sampling_rate and not self.transcribing:
             self.__transcribe_current_buffer()
 
     async def send_response(self, proto: Any):
@@ -51,7 +51,7 @@ class RequestHandler:
         timestamp = round(time.time() * 1000)
         self.pool.apply_async(
             transcribe_safe, 
-            args=(self.chunk_manager.buffer,timestamp), 
+            args=(self.chunk_manager.buffer.bytes(),timestamp), 
             callback=self.__receive_transcribe_result,
             error_callback=self.__receive_transcribe_error
         )
