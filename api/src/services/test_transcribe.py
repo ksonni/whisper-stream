@@ -54,8 +54,8 @@ class TestTranscriptionResult(unittest.TestCase):
         params = _make_params()
         result = TranscriptionResult(params, {})
         self.assertEqual(result.chunks, [])
-        self.assertEqual(result.start, params.buffer.start_time)
-        self.assertEqual(result.end, params.buffer.end_time)
+        self.assertEqual(result.buffer_start, params.buffer.start_time)
+        self.assertEqual(result.buffer_end, params.buffer.end_time)
 
     def test_init_incomplete_chunks(self):
         params = _make_params()

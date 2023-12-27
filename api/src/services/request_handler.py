@@ -1,4 +1,5 @@
 import asyncio
+import time
 from multiprocessing import Pool
 from multiprocessing.pool import Pool as PoolType
 from typing import Any
@@ -8,6 +9,7 @@ import numpy as np
 from websockets import WebSocketServerProtocol
 
 import protobufs.transcription_pb2 as pb
+from config import Config
 from .audio_chunk_manager import AudioChunkManager
 from .transcribe import transcribe_safe, TranscriptionParams, TranscriptionResult
 
@@ -21,6 +23,7 @@ class RequestHandler:
         self.loop = asyncio.get_event_loop()
         self.chunk_manager = AudioChunkManager()
         self.transcribing = False
+        self.last_transcribe_time: float = 0
 
     async def handle_request(self, msg: str | bytes):
         try:
@@ -29,8 +32,8 @@ class RequestHandler:
             print("Failed to serialize transcription request", e)
             return
         data = np.array(request.data, dtype=np.float32)
-        self.chunk_manager.append_audio(data)
-        if self.chunk_manager.has_min_buffer and not self.transcribing:
+        self.chunk_manager.append_audio_chunk(data)
+        if self.can_transcribe:
             self.__transcribe_current_buffer()
 
     async def send_response(self, proto: Any):
@@ -43,7 +46,12 @@ class RequestHandler:
 
     def __transcribe_current_buffer(self):
         self.transcribing = True
+        self.chunk_manager.prune_chunks()
+        if not self.chunk_manager.has_min_buffer:
+            self.transcribing = False
+            return
         params = TranscriptionParams(uuid(), self.chunk_manager.copy_buffer())
+        self.last_transcribe_time = time.time()
         self.pool.apply_async(
             transcribe_safe,
             args=(params,),
@@ -55,22 +63,28 @@ class RequestHandler:
         asyncio.run_coroutine_threadsafe(self.__handle_transcribe_result(raw), self.loop)
 
     def __receive_transcribe_error(self, err: Any):
-        # This is an IPC programming error - transcribe_safe should handle all exceptions
+        # This indicates a programming error - transcribe_safe should handle all exceptions
         raise AssertionError("A fatal error occurred when receiving transcription result", err)
 
     async def __handle_transcribe_result(self, result: TranscriptionResult):
-        self.chunk_manager.append_result(result)
+        if not result.error:
+            self.chunk_manager.append_transcription_result(result)
         self.transcribing = False
         await self.send_response(pb.TranscriptionResponse(
-            buffer_start=result.start,
-            buffer_end=result.end,
-            code=200 if result.chunks is not None else 500,
+            buffer_start=result.buffer_start,
+            buffer_end=result.buffer_end,
+            code=200 if not result.error else 500,
             chunks=map(lambda c: pb.TranscriptionChunk(
                 text=c.text,
                 start_time=c.start_time,
                 end_time=c.end_time
-            ), result.chunks or [])
+            ), result.chunks)
         ))
+
+    @property
+    def can_transcribe(self) -> bool:
+        return (self.chunk_manager.has_min_buffer and not self.transcribing and
+                (time.time() - self.last_transcribe_time >= 60 / Config.max_transcriptions_pm))
 
     @staticmethod
     def __parse_request(msg: str | bytes) -> pb.TranscriptionRequest:
