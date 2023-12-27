@@ -1,5 +1,12 @@
 from dataclasses import dataclass
 
+from enum import Enum
+
+
+class WhisperImpl(Enum):
+    OpenAI = 1
+    Transformers = 2
+
 
 @dataclass
 class __Config:
@@ -14,6 +21,13 @@ class __Config:
 
     # Max transcriptions per minute per session
     max_transcriptions_pm = 80
+
+    # The Whisper implementation to use
+    whisper_implementation = WhisperImpl.OpenAI
+
+    # Whisper model
+    whisper_model = "base.en"
+
 
 
 Config = __Config()
