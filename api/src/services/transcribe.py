@@ -71,7 +71,6 @@ def transcribe_safe(r: TranscriptionParams, sample_rate=Config.sampling_rate) ->
     try:
         print(f'Transcribing chunk of duration {r.buffer.size / sample_rate:.2f}s')
         out = WhisperModel.transcribe(r.buffer.bytes())
-        print(out)
         print(f'Transcribed chunk in {time.time() - start:.2f}s')
         return TranscriptionResult(r, out)
     except Exception as e:
