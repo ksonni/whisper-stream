@@ -51,7 +51,7 @@ class OpenAIImpl(Model):
         # Reformat to make it align with the transformers output
         out = self.__load_model().transcribe(buffer, no_speech_threshold=0.4)
         out["segments"] = filter(
-            lambda c : c["no_speech_prob"] is None or c["no_speech_prob"] < 0.4, out["segments"])
+            lambda c: c["no_speech_prob"] is None or c["no_speech_prob"] < 0.4, out["segments"])
         return {"chunks": map(lambda s: {
             'text': s['text'],
             'timestamp': (s['start'], s['end']),

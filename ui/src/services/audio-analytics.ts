@@ -21,7 +21,7 @@ export type AnalyticsEvent =
     | { kind: 'error' }
     | {
           kind: 'text'
-          text: string
+          res: TranscriptionResponse
       }
 
 export type AnalyticsEventListener = (e: AnalyticsEvent) => void
@@ -46,8 +46,7 @@ export class AudioAnalyticsSession {
         this.ws.onmessage = (msg) => {
             const data = TranscriptionResponse.deserialize(new Uint8Array(msg.data))
             if (data.code === 200) {
-                const text = data.chunks.map((c) => c.text).join()
-                this.dispatchEvent({ kind: 'text', text })
+                this.dispatchEvent({ kind: 'text', res: data })
             } else {
                 this.dispatchEvent({ kind: 'error' })
             }

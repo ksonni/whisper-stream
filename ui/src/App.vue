@@ -3,7 +3,10 @@
         <button class="btn" @click="!recording ? start() : stop()">
             {{ !recording ? 'Start' : 'Stop' }}
         </button>
-        <div v-if="text" class="text">{{ text }}</div>
+        <div class="text-holder" v-if="text || tempText">
+            <span v-if="text" class="text"> {{ text }} </span>
+            <span v-if="tempText" class="temp-text"> {{ tempText }} </span>
+        </div>
         <div v-else class="placeholder">Text will appear here</div>
     </div>
 </template>
@@ -13,11 +16,14 @@ import { defineComponent } from 'vue'
 
 import { AudioAnalyticsSession } from '@/services/audio-analytics'
 import type { AnalyticsEvent } from '@/services/audio-analytics'
+import { TranscriptionResponse } from '@/protobufs/transcription'
 
 class Data {
     recording = false
     session: AudioAnalyticsSession | undefined
     text = ''
+    tempText = ''
+    lastBufferStart: number | undefined
 }
 
 export default defineComponent({
@@ -45,14 +51,24 @@ export default defineComponent({
         },
 
         handleEvent: function (event: AnalyticsEvent) {
-            console.log('Got an anlytics event', event)
             switch (event.kind) {
                 case 'text':
-                    this.text = event.text
-                    break
+                    this.decodeResponse(event.res)
                 case 'error':
+                    console.error('An error occured, stopping session!')
                     break
             }
+        },
+
+        decodeResponse(response: TranscriptionResponse) {
+            const text = response.chunks.map((c) => c.text).join()
+            if (this.lastBufferStart != null && this.lastBufferStart !== response.buffer_start) {
+                this.text += this.tempText
+                this.tempText = text
+            } else {
+                this.tempText = text
+            }
+            this.lastBufferStart = response.buffer_start
         }
     }
 })
@@ -75,14 +91,21 @@ export default defineComponent({
     padding: 32px;
 }
 
-.text,
+.text-holder,
 .placeholder {
     margin-top: 16px;
+}
+
+.text, .temp-text, .placeholder {
     min-height: 12px;
 }
 
 .placeholder {
     color: gray;
+}
+
+.temp-text {
+    color: rgb(152, 152, 152);
 }
 
 .btn {
