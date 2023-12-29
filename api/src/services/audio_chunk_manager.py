@@ -44,7 +44,7 @@ class AudioChunkManager:
         prunable_chunk: TranscriptionChunk | None = None
 
         for i in range(0, n_chunks):
-            chunk = results[0].chunks[i]
+            chunk = results[len(results)-1].chunks[i]
             if all(r.chunks[i].text == chunk.text for r in results):
                 prunable_chunk = chunk
             else:

@@ -16,20 +16,24 @@ import { defineComponent } from 'vue'
 
 import { AudioAnalyticsSession } from '@/services/audio-analytics'
 import type { AnalyticsEvent } from '@/services/audio-analytics'
-import { TranscriptionResponse } from '@/protobufs/transcription'
+import { TranscriptionResponse, TranscriptionChunk } from '@/protobufs/transcription'
 
 class Data {
     recording = false
     session: AudioAnalyticsSession | undefined
     text = ''
-    tempText = ''
-    lastBufferStart: number | undefined
+    tempChunks: TranscriptionChunk[] = []
 }
 
 export default defineComponent({
     name: 'App',
     data: function () {
         return new Data()
+    },
+    computed: {
+        tempText: function (): string {
+            return this.tempChunks.map((c) => c.text).join()
+        }
     },
     methods: {
         start: async function () {
@@ -54,6 +58,7 @@ export default defineComponent({
             switch (event.kind) {
                 case 'text':
                     this.decodeResponse(event.res)
+                    break
                 case 'error':
                     console.error('An error occured, stopping session!')
                     break
@@ -61,14 +66,16 @@ export default defineComponent({
         },
 
         decodeResponse(response: TranscriptionResponse) {
-            const text = response.chunks.map((c) => c.text).join()
-            if (this.lastBufferStart != null && this.lastBufferStart !== response.buffer_start) {
-                this.text += this.tempText
-                this.tempText = text
-            } else {
-                this.tempText = text
-            }
-            this.lastBufferStart = response.buffer_start
+            this.finalizeChunks(response.buffer_start)
+            this.tempChunks = response.chunks
+        },
+
+        finalizeChunks(before: number) {
+            const finalized = this.tempChunks
+                .filter((c) => c.end_time <= before)
+                .map((c) => c.text)
+                .join()
+            this.text += finalized
         }
     }
 })
@@ -96,7 +103,9 @@ export default defineComponent({
     margin-top: 16px;
 }
 
-.text, .temp-text, .placeholder {
+.text,
+.temp-text,
+.placeholder {
     min-height: 12px;
 }
 
